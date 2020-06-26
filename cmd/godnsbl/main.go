@@ -2,13 +2,12 @@ package main
 
 import (
 	"encoding/json"
-
 	"fmt"
 	"log"
 	"os"
 	"sync"
 
-	"github.com/mrichman/godnsbl"
+	"github.com/HENNGE/godnsbl"
 )
 
 func main() {
