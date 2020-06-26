@@ -10,10 +10,16 @@ import (
 	"github.com/HENNGE/godnsbl"
 )
 
-func main() {
+type RBLResult struct {
+	Address string
+	Listed  bool
+	Text    string `json:",omitempty"`
+	Error   string `json:",omitempty"`
+}
 
+func main() {
 	if len(os.Args) != 2 {
-		fmt.Println("Please supply a domain name or IP address.")
+		fmt.Println("Please supply an IP address.")
 		os.Exit(1)
 	}
 
@@ -21,16 +27,24 @@ func main() {
 
 	wg := &sync.WaitGroup{}
 	blacklists := godnsbl.Blacklists()
-	results := make([]godnsbl.Result, 0, len(blacklists))
+	results := make([]RBLResult, len(blacklists))
 	for i, source := range blacklists {
 		wg.Add(1)
-		go func(i int, source string) {
+		go func(i int, list string) {
 			defer wg.Done()
-			rbl := godnsbl.Lookup(source, ip)
-			if len(rbl.Results) == 0 {
-				results[i] = godnsbl.Result{}
-			} else {
-				results[i] = rbl.Results[0]
+			result, err := godnsbl.Lookup(list, ip)
+			if err != nil {
+				results[i] = RBLResult{
+					Address: ip,
+					Error:   err.Error(),
+				}
+				return
+			}
+
+			results[i] = RBLResult{
+				Address: ip,
+				Listed:  result.Listed,
+				Text:    result.Text,
 			}
 		}(i, source)
 	}
@@ -38,6 +52,7 @@ func main() {
 	wg.Wait()
 
 	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "	")
 	if err := enc.Encode(&results); err != nil {
 		log.Println(err)
 	}

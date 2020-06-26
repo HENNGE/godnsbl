@@ -1,15 +1,12 @@
-/*
-Package godnsbl lets you perform RBL (Real-time Blackhole List - https://en.wikipedia.org/wiki/DNSBL)
-lookups using Golang
-
-JSON annotations on the types are provided as a convenience.
-*/
+// Package godnsbl lets you perform RBL lookups.
+// A list of well know RBLs is provided.
+// RBL = Real-time Blackhole List (https://en.wikipedia.org/wiki/DNSBL).
 package godnsbl
 
 import (
+	"errors"
 	"fmt"
 	"net"
-	"strings"
 )
 
 // Blacklists is the list of blackhole lists to check against.
@@ -97,91 +94,88 @@ func Blacklists() []string {
 	}
 }
 
-// RBLResults holds the results of the lookup.
-type RBLResults struct {
-	// List is the RBL that was searched
-	List string `json:"list"`
-	// Host is the host or IP that was passed (i.e. smtp.gmail.com)
-	Host string `json:"host"`
-	// Results is a slice of Results - one per IP address searched
-	Results []Result `json:"results"`
-}
-
-// Result holds the individual IP lookup results for each RBL search.
+// Result holds the individual result of an IP lookup for an RBL search.
 // nolint:maligned
 type Result struct {
-	// Address is the IP address that was searched
-	Address string `json:"address"`
 	// Listed indicates whether or not the IP was on the RBL
 	Listed bool `json:"listed"`
-	// RBL lists sometimes add extra information as a TXT record
-	// if any info is present, it will be stored here.
+	// RBL lists sometimes add extra information as a TXT record.
+	// If any info is present, it will be stored here.
 	Text string `json:"text"`
-	// Error represents any error that was encountered (DNS timeout, host not
-	// found, etc.) if any
-	Error bool `json:"error"`
-	// ErrorType is the type of error encountered if any
-	ErrorType error `json:"error_type"`
 }
 
 // Reverse the octets of a given IPv4 address
-// 64.233.171.108 becomes 108.171.233.64.
-func Reverse(ip net.IP) string {
-	if ip.To4() == nil {
-		return ""
+// '64.233.171.108' becomes '108.171.233.64'.
+// If it's not an v4 IP, returns nil.
+func Reverse(ip net.IP) net.IP {
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return nil
 	}
 
-	splitAddress := strings.Split(ip.String(), ".")
-
-	for i, j := 0, len(splitAddress)-1; i < len(splitAddress)/2; i, j = i+1, j-1 {
-		splitAddress[i], splitAddress[j] = splitAddress[j], splitAddress[i]
-	}
-
-	return strings.Join(splitAddress, ".")
+	return net.IPv4(ip4[3], ip4[2], ip4[1], ip4[0])
 }
 
-func query(rbl string, host string, r *Result) {
-	r.Listed = false
-
-	lookup := fmt.Sprintf("%s.%s", host, rbl)
+func query(rbl string, ip net.IP) (*Result, error) {
+	lookup := fmt.Sprintf("%s.%s", Reverse(ip).String(), rbl)
 
 	res, err := net.LookupHost(lookup)
+	if err != nil && !recordNotFound(err) { // If the record doesn't exists, the IP isn't blacklisted
+		return nil, err
+	}
+
+	listed := false
+	text := ""
+
 	if len(res) > 0 {
-		r.Listed = true
-		txt, _ := net.LookupTXT(lookup)
+		listed = true
+
+		txt, err := net.LookupTXT(lookup)
+		if err != nil && !isNonFatalDNSError(err) {
+			return nil, fmt.Errorf("looking up TXT record: %w", err)
+		}
 
 		if len(txt) > 0 {
-			r.Text = txt[0]
+			text = txt[0]
 		}
 	}
 
-	if err != nil {
-		r.Error = true
-		r.ErrorType = err
+	return &Result{
+		Listed: listed,
+		Text:   text,
+	}, nil
+}
+
+func recordNotFound(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return dnsErr.IsNotFound
 	}
+
+	return false
+}
+
+// false means the error is either a fatal DNS error, or not even a DNS error.
+func isNonFatalDNSError(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		if dnsErr.Temporary() || dnsErr.IsNotFound {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Lookup performs the search and returns the RBLResults.
-func Lookup(rblList string, targetHost string) (r RBLResults) {
-	r.List = rblList
-	r.Host = targetHost
+func Lookup(rblList string, rawIP string) (*Result, error) {
+	ip := net.ParseIP(rawIP)
+	ip4 := ip.To4()
 
-	if ip, err := net.LookupIP(targetHost); err == nil {
-		for _, addr := range ip {
-			if addr.To4() != nil {
-				res := Result{}
-				res.Address = addr.String()
-
-				addr := Reverse(addr)
-
-				query(rblList, addr, &res)
-
-				r.Results = append(r.Results, res)
-			}
-		}
-	} else {
-		r.Results = append(r.Results, Result{})
+	res, err := query(rblList, ip4)
+	if err != nil {
+		return nil, err
 	}
 
-	return
+	return res, nil
 }
