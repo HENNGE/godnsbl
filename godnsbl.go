@@ -12,9 +12,7 @@ import (
 	"strings"
 )
 
-/*
-Blacklists is the list of blackhole lists to check against
-*/
+// Blacklists is the list of blackhole lists to check against.
 var Blacklists = []string{
 	"aspews.ext.sorbs.net",
 	"b.barracudacentral.org",
@@ -95,9 +93,7 @@ var Blacklists = []string{
 	"zen.spamhaus.org",
 	"zombie.dnsbl.sorbs.net"}
 
-/*
-RBLResults holds the results of the lookup.
-*/
+// RBLResults holds the results of the lookup.
 type RBLResults struct {
 	// List is the RBL that was searched
 	List string `json:"list"`
@@ -107,9 +103,7 @@ type RBLResults struct {
 	Results []Result `json:"results"`
 }
 
-/*
-Result holds the individual IP lookup results for each RBL search
-*/
+// Result holds the individual IP lookup results for each RBL search.
 type Result struct {
 	// Address is the IP address that was searched
 	Address string `json:"address"`
@@ -125,10 +119,8 @@ type Result struct {
 	ErrorType error `json:"error_type"`
 }
 
-/*
-Reverse the octets of a given IPv4 address
-64.233.171.108 becomes 108.171.233.64
-*/
+// Reverse the octets of a given IPv4 address
+// 64.233.171.108 becomes 108.171.233.64
 func Reverse(ip net.IP) string {
 	if ip.To4() == nil {
 		return ""
@@ -164,9 +156,7 @@ func query(rbl string, host string, r *Result) {
 	return
 }
 
-/*
-Lookup performs the search and returns the RBLResults
-*/
+// Lookup performs the search and returns the RBLResults.
 func Lookup(rblList string, targetHost string) (r RBLResults) {
 	r.List = rblList
 	r.Host = targetHost
