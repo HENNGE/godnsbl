@@ -20,8 +20,9 @@ func main() {
 	ip := os.Args[1]
 
 	wg := &sync.WaitGroup{}
-	results := make([]godnsbl.Result, len(godnsbl.Blacklists))
-	for i, source := range godnsbl.Blacklists {
+	blacklists := godnsbl.Blacklists()
+	results := make([]godnsbl.Result, 0, len(blacklists))
+	for i, source := range blacklists {
 		wg.Add(1)
 		go func(i int, source string) {
 			defer wg.Done()
