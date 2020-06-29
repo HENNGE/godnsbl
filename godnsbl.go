@@ -88,6 +88,7 @@ func Blacklists() []string {
 		"wormrbl.imp.ch",
 		"zen.spamhaus.org",
 		"zombie.dnsbl.sorbs.net",
+		"cidr.bl.mcafee.com",
 	}
 }
 
