@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -22,7 +23,7 @@ func main() {
 	ip := os.Args[1]
 	rbl := os.Args[2]
 
-	result, err := godnsbl.Lookup(rbl, ip)
+	result, err := godnsbl.Lookup(context.Background(), rbl, ip)
 	if err != nil {
 		fmt.Println("Failed to lookup IP for RBL", err)
 		return
