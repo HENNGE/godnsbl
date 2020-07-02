@@ -3,6 +3,7 @@
 package godnsbl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -30,10 +31,10 @@ func Reverse(ip net.IP) net.IP {
 	return net.IPv4(ip4[3], ip4[2], ip4[1], ip4[0])
 }
 
-func query(rbl string, ip net.IP) (*Result, error) {
+func query(ctx context.Context, rbl string, ip net.IP) (*Result, error) {
 	lookup := fmt.Sprintf("%s.%s", Reverse(ip).String(), rbl)
 
-	res, err := net.LookupHost(lookup)
+	res, err := net.DefaultResolver.LookupHost(ctx, lookup)
 	if err != nil && !recordNotFound(err) { // If the record doesn't exists, the IP isn't blacklisted
 		return nil, err
 	}
@@ -82,11 +83,11 @@ func isNonFatalDNSError(err error) bool {
 }
 
 // Lookup performs the search and returns the RBLResults.
-func Lookup(rblList string, rawIP string) (*Result, error) {
+func Lookup(ctx context.Context, rblList string, rawIP string) (*Result, error) {
 	ip := net.ParseIP(rawIP)
 	ip4 := ip.To4()
 
-	res, err := query(rblList, ip4)
+	res, err := query(ctx, rblList, ip4)
 	if err != nil {
 		return nil, err
 	}
